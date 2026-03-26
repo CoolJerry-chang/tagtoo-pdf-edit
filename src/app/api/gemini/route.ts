@@ -9,7 +9,28 @@ const ALLOWED_MODELS = [
   "gemini-3.1-flash-image-preview",
 ];
 
+const ALLOWED_ORIGINS = [
+  "https://pdfedit-app.vercel.app",
+  "http://localhost:3000",
+];
+
 export async function POST(request: NextRequest) {
+  // Origin check — only allow requests from our own frontend
+  const origin = request.headers.get("origin") || "";
+  const referer = request.headers.get("referer") || "";
+  const isAllowed =
+    ALLOWED_ORIGINS.some((o) => origin.startsWith(o) || referer.startsWith(o)) ||
+    // Allow Vercel preview deployments
+    origin.includes("vercel.app") ||
+    referer.includes("vercel.app");
+
+  if (!isAllowed) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
   if (!GEMINI_API_KEY) {
     return NextResponse.json(
       { error: "Server API key not configured" },
@@ -33,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     if (!ALLOWED_MODELS.includes(model)) {
       return NextResponse.json(
-        { error: `Model not allowed: ${model}` },
+        { error: "Model not allowed" },
         { status: 400 }
       );
     }
@@ -49,14 +70,20 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
-      return NextResponse.json(data, { status: response.status });
+      // Sanitize: only forward the error message, not full Google response
+      const errorMsg =
+        (data as { error?: { message?: string } }).error?.message ||
+        "Gemini API request failed";
+      return NextResponse.json(
+        { error: errorMsg },
+        { status: response.status }
+      );
     }
 
     return NextResponse.json(data);
-  } catch (err) {
-    console.error("Gemini proxy error:", err);
+  } catch {
     return NextResponse.json(
-      { error: `Proxy error: ${err instanceof Error ? err.message : "unknown"}` },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
