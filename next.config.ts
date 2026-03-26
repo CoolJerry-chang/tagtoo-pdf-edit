@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
         assetPrefix: "/tagtoo-pdf-edit/",
       }
     : {}),
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "20mb",
+    },
+  },
   turbopack: {},
   webpack: (config) => {
     config.resolve.alias.canvas = false;

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const ALLOWED_MODELS = [
@@ -16,9 +18,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { model, body } = await request.json();
+    const text = await request.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON in request body" },
+        { status: 400 }
+      );
+    }
 
-    // Validate model name to prevent abuse
+    const { model, body } = parsed;
+
     if (!ALLOWED_MODELS.includes(model)) {
       return NextResponse.json(
         { error: `Model not allowed: ${model}` },
@@ -44,7 +56,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("Gemini proxy error:", err);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: `Proxy error: ${err instanceof Error ? err.message : "unknown"}` },
       { status: 500 }
     );
   }
