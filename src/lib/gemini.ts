@@ -1,36 +1,81 @@
-const GEMINI_FLASH_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-const GEMINI_IMAGE_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent";
+const GEMINI_FLASH_MODEL = "gemini-2.0-flash";
+const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 
 const API_KEY_STORAGE_KEY = "pdfedit_gemini_api_key";
 
-/**
- * Get the Gemini API key from localStorage
- */
+// --- API Key management (for static/GitHub Pages mode) ---
+
 export function getApiKey(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
-/**
- * Save the Gemini API key to localStorage
- */
 export function setApiKey(key: string) {
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
 }
 
-/**
- * Remove the Gemini API key from localStorage
- */
 export function clearApiKey() {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
+/**
+ * Check if we're running on Vercel (has server-side API route)
+ */
+function hasServerProxy(): boolean {
+  // The API route only exists when deployed on Vercel (not static export)
+  // We detect this by checking if NEXT_PUBLIC_USE_PROXY is set at build time
+  return process.env.NEXT_PUBLIC_USE_PROXY === "true";
+}
+
+/**
+ * Call Gemini API — routes through server proxy on Vercel, direct on GitHub Pages
+ */
+async function callGemini(
+  model: string,
+  requestBody: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  if (hasServerProxy()) {
+    // Server proxy mode (Vercel) — key is on the server
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, body: requestBody }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(
+        `Gemini API error: ${res.status} — ${JSON.stringify(data)}`
+      );
+    }
+    return data;
+  } else {
+    // Direct mode (GitHub Pages) — key from localStorage
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      throw new Error("請先設定 Gemini API Key");
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(
+        `Gemini API error: ${res.status} — ${JSON.stringify(data)}`
+      );
+    }
+    return data;
+  }
+}
+
+// --- Types ---
+
 export interface ExtractedTextBlock {
   id: string;
   text: string;
-  location: string; // human-readable description of where the text is
+  location: string;
 }
 
 export interface TextEdit {
@@ -38,18 +83,12 @@ export interface TextEdit {
   newText: string;
 }
 
-/**
- * Use Gemini to extract all text blocks from a slide image
- */
+// --- Text extraction ---
+
 export async function extractTextFromImage(
   imageDataUrl: string,
   pageIndex: number
 ): Promise<ExtractedTextBlock[]> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("請先設定 Gemini API Key");
-  }
-
   const base64Data = imageDataUrl.split(",")[1];
   const mimeType = imageDataUrl.split(";")[0].split(":")[1];
 
@@ -73,37 +112,26 @@ export async function extractTextFromImage(
 - 保持原始的換行（用 \\n 表示）
 - 不要遺漏任何文字，包括小字、浮水印、品牌標誌文字`;
 
-  const response = await fetch(`${GEMINI_FLASH_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType,
-                data: base64Data,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
+  const result = await callGemini(GEMINI_FLASH_MODEL, {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType, data: base64Data } },
+        ],
       },
-    }),
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${response.status} — ${error}`);
-  }
-
-  const result = await response.json();
-  const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = (
+    result as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    }
+  ).candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!text) {
     throw new Error("Gemini did not return text content");
@@ -123,19 +151,12 @@ export async function extractTextFromImage(
   }
 }
 
-/**
- * Use Gemini to edit text in a slide image.
- * Sends the image + edit instructions, receives the modified image back.
- */
+// --- Image editing ---
+
 export async function editSlideText(
   imageDataUrl: string,
   edits: TextEdit[]
 ): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("請先設定 Gemini API Key");
-  }
-
   const editInstructions = edits
     .map(
       (e, i) =>
@@ -157,37 +178,26 @@ ${editInstructions}
   const base64Data = imageDataUrl.split(",")[1];
   const mimeType = imageDataUrl.split(";")[0].split(":")[1];
 
-  const response = await fetch(`${GEMINI_IMAGE_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType,
-                data: base64Data,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        responseModalities: ["IMAGE", "TEXT"],
-        temperature: 0.1,
+  const result = await callGemini(GEMINI_IMAGE_MODEL, {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType, data: base64Data } },
+        ],
       },
-    }),
+    ],
+    generationConfig: {
+      responseModalities: ["IMAGE", "TEXT"],
+      temperature: 0.1,
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${response.status} — ${error}`);
-  }
-
-  const result = await response.json();
-  const parts = result.candidates?.[0]?.content?.parts;
+  const parts = (
+    result as {
+      candidates?: { content?: { parts?: { inlineData?: { mimeType: string; data: string }; text?: string }[] } }[];
+    }
+  ).candidates?.[0]?.content?.parts;
 
   if (!parts) {
     throw new Error("Gemini did not return any content");
@@ -199,10 +209,9 @@ ${editInstructions}
     }
   }
 
-  // If no image returned, show what was returned
   const textParts = parts
-    .filter((p: { text?: string }) => p.text)
-    .map((p: { text: string }) => p.text)
+    .filter((p) => p.text)
+    .map((p) => p.text)
     .join("\n");
 
   throw new Error(

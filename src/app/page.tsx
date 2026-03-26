@@ -29,10 +29,12 @@ export default function Home() {
     {}
   );
 
-  // Check for API key on mount
+  const useProxy = process.env.NEXT_PUBLIC_USE_PROXY === "true";
+
+  // Check for API key on mount (skip if using server proxy)
   useEffect(() => {
-    setHasApiKey(!!getApiKey());
-  }, []);
+    setHasApiKey(useProxy || !!getApiKey());
+  }, [useProxy]);
 
   const handleApiKeySet = useCallback((key: string) => {
     setApiKey(key);
