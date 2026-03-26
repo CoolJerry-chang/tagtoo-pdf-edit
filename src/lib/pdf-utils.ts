@@ -41,7 +41,8 @@ export async function loadPdf(file: File): Promise<PageData[]> {
     canvas.height = viewport.height;
     const ctx = canvas.getContext("2d")!;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await page.render({ canvasContext: ctx, viewport } as any).promise;
     const imageDataUrl = canvas.toDataURL("image/png");
 
     pages.push({
