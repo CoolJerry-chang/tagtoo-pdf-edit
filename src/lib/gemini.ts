@@ -1,9 +1,31 @@
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
 const GEMINI_FLASH_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const GEMINI_IMAGE_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent";
+
+const API_KEY_STORAGE_KEY = "pdfedit_gemini_api_key";
+
+/**
+ * Get the Gemini API key from localStorage
+ */
+export function getApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(API_KEY_STORAGE_KEY);
+}
+
+/**
+ * Save the Gemini API key to localStorage
+ */
+export function setApiKey(key: string) {
+  localStorage.setItem(API_KEY_STORAGE_KEY, key);
+}
+
+/**
+ * Remove the Gemini API key from localStorage
+ */
+export function clearApiKey() {
+  localStorage.removeItem(API_KEY_STORAGE_KEY);
+}
 
 export interface ExtractedTextBlock {
   id: string;
@@ -23,8 +45,9 @@ export async function extractTextFromImage(
   imageDataUrl: string,
   pageIndex: number
 ): Promise<ExtractedTextBlock[]> {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("請先設定 Gemini API Key");
   }
 
   const base64Data = imageDataUrl.split(",")[1];
@@ -50,7 +73,7 @@ export async function extractTextFromImage(
 - 保持原始的換行（用 \\n 表示）
 - 不要遺漏任何文字，包括小字、浮水印、品牌標誌文字`;
 
-  const response = await fetch(`${GEMINI_FLASH_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${GEMINI_FLASH_URL}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -108,8 +131,9 @@ export async function editSlideText(
   imageDataUrl: string,
   edits: TextEdit[]
 ): Promise<string> {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("請先設定 Gemini API Key");
   }
 
   const editInstructions = edits
@@ -133,7 +157,7 @@ ${editInstructions}
   const base64Data = imageDataUrl.split(",")[1];
   const mimeType = imageDataUrl.split(";")[0].split(":")[1];
 
-  const response = await fetch(`${GEMINI_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${GEMINI_IMAGE_URL}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

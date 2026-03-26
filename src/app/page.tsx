@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import PdfUploader from "@/components/PdfUploader";
 import PdfViewer from "@/components/PdfViewer";
 import TextPanel from "@/components/TextPanel";
 import ExportBar from "@/components/ExportBar";
+import ApiKeySetup from "@/components/ApiKeySetup";
 import { loadPdf, PageData, TextBlock } from "@/lib/pdf-utils";
 import { extractTextFromImage, editSlideText, TextEdit } from "@/lib/gemini";
+import { getApiKey, setApiKey, clearApiKey } from "@/lib/gemini";
 import {
   createPdfFromImages,
   downloadFile,
@@ -14,6 +16,7 @@ import {
 } from "@/lib/export-utils";
 
 export default function Home() {
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [pages, setPages] = useState<PageData[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +28,21 @@ export default function Home() {
   const [modifiedImages, setModifiedImages] = useState<Record<number, string>>(
     {}
   );
+
+  // Check for API key on mount
+  useEffect(() => {
+    setHasApiKey(!!getApiKey());
+  }, []);
+
+  const handleApiKeySet = useCallback((key: string) => {
+    setApiKey(key);
+    setHasApiKey(true);
+  }, []);
+
+  const handleClearApiKey = useCallback(() => {
+    clearApiKey();
+    setHasApiKey(false);
+  }, []);
 
   const handleFileSelected = useCallback(async (file: File) => {
     setIsLoading(true);
@@ -192,6 +210,20 @@ export default function Home() {
 
   const editedPageCount = Object.keys(modifiedImages).length;
 
+  // Loading state (checking localStorage)
+  if (hasApiKey === null) {
+    return <div className="flex flex-col h-screen" />;
+  }
+
+  // API Key setup screen
+  if (!hasApiKey) {
+    return (
+      <div className="flex flex-col h-screen">
+        <ApiKeySetup onKeySet={handleApiKeySet} />
+      </div>
+    );
+  }
+
   // Upload screen
   if (pages.length === 0) {
     return (
@@ -200,6 +232,14 @@ export default function Home() {
           onFileSelected={handleFileSelected}
           isLoading={isLoading}
         />
+        <div className="text-center pb-4">
+          <button
+            className="text-xs text-muted hover:text-foreground transition-colors"
+            onClick={handleClearApiKey}
+          >
+            重設 API Key
+          </button>
+        </div>
       </div>
     );
   }
