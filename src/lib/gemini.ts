@@ -196,21 +196,52 @@ export async function editSlideText(
   imageDataUrl: string,
   edits: TextEdit[]
 ): Promise<string> {
-  const editInstructions = edits
-    .map(
-      (e, i) =>
-        `${i + 1}. 找到「${e.originalText}」，替換為「${e.newText}」`
-    )
-    .join("\n");
+  // Split edits into two strategies based on text length change
+  const preciseEdits: { index: number; edit: TextEdit }[] = [];
+  const rewriteEdits: { index: number; edit: TextEdit }[] = [];
 
-  const prompt = `你是一個精確的圖片文字編輯器。請在這張投影片圖片中進行以下文字替換：
+  edits.forEach((e, i) => {
+    if (e.originalText.length === e.newText.length) {
+      preciseEdits.push({ index: i + 1, edit: e });
+    } else {
+      rewriteEdits.push({ index: i + 1, edit: e });
+    }
+  });
+
+  const instructionParts: string[] = [];
+
+  if (preciseEdits.length > 0) {
+    instructionParts.push(
+      "【精準替換】以下文字長度不變，請原位替換：",
+      ...preciseEdits.map(
+        ({ index, edit }) =>
+          `${index}. 找到「${edit.originalText}」，替換為「${edit.newText}」`
+      )
+    );
+  }
+
+  if (rewriteEdits.length > 0) {
+    instructionParts.push(
+      "【整段重寫】以下文字長度有變動，請將該區域的文字整段替換為新內容，自動調整文字間距與換行以適應新長度：",
+      ...rewriteEdits.map(
+        ({ index, edit }) =>
+          `${index}. 找到「${edit.originalText}」所在的文字區域，將整段文字替換為「${edit.newText}」`
+      )
+    );
+  }
+
+  const editInstructions = instructionParts.join("\n");
+
+  const prompt = `你是一個精確的圖片文字編輯器。請在這張投影片圖片中進行以下文字修改：
 
 ${editInstructions}
 
 要求：
-- 只替換指定的文字，不要改動其他任何內容
-- 保持原本的字體大小、顏色、粗細、位置
+- 只修改指定的文字區域，不要改動其他任何內容
+- 保持原本的字體大小、顏色、粗細風格
 - 保持背景和其他視覺元素完全不變
+- 【整段重寫】的項目：不要參考原文的排版位置，直接以新文字重新渲染，自動調整間距讓文字自然排列
+- 【精準替換】的項目：保持原本位置不動，只替換文字內容
 - 如果找不到指定的文字，保持原圖不動
 - 直接回傳修改後的圖片`;
 
