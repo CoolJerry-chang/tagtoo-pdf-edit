@@ -118,6 +118,7 @@ export interface ExtractedTextBlock {
 export interface TextEdit {
   originalText: string;
   newText: string;
+  location: string;
 }
 
 // --- Text extraction ---
@@ -222,10 +223,10 @@ export async function editSlideText(
 
   if (rewriteEdits.length > 0) {
     instructionParts.push(
-      "【整段重寫】以下文字長度有變動，請將該區域的文字整段替換為新內容，自動調整文字間距與換行以適應新長度：",
+      "【整段重寫】以下文字的長度有變動。請根據位置描述找到該文字區域，將整塊文字完全清除，然後重新渲染為指定的新內容。不要嘗試逐字對比或局部修改，直接用新內容整段取代：",
       ...rewriteEdits.map(
         ({ index, edit }) =>
-          `${index}. 找到「${edit.originalText}」所在的文字區域，將整段文字替換為「${edit.newText}」`
+          `${index}. 位置：「${edit.location}」\n   目前內容：「${edit.originalText}」\n   請整段替換為：「${edit.newText}」`
       )
     );
   }
@@ -240,7 +241,7 @@ ${editInstructions}
 - 只修改指定的文字區域，不要改動其他任何內容
 - 保持原本的字體大小、顏色、粗細風格
 - 保持背景和其他視覺元素完全不變
-- 【整段重寫】的項目：不要參考原文的排版位置，直接以新文字重新渲染，自動調整間距讓文字自然排列
+- 【整段重寫】的項目：先將該區域的舊文字完全擦除，然後以「請整段替換為」後面的新內容重新渲染。新內容就是最終結果，不要增加或遺漏任何字。自動調整間距與換行讓文字自然排列
 - 【精準替換】的項目：保持原本位置不動，只替換文字內容
 - 如果找不到指定的文字，保持原圖不動
 - 直接回傳修改後的圖片`;

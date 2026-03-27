@@ -144,6 +144,7 @@ export default function Home() {
         const edits: TextEdit[] = editedBlocks.map((b) => ({
           originalText: b.text,
           newText: b.editedText,
+          location: b.location,
         }));
 
         const sourceImage =
