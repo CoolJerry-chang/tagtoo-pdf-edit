@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+// Image generation (gemini-3.1-flash-image-preview) can take >60s
+export const maxDuration = 300;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
