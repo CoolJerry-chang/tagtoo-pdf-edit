@@ -65,7 +65,7 @@ export async function createPdfFromImages(
       height: pageHeight,
     });
     // Yield to UI thread so progress updates render
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 10));
   }
 
   return await pdfDoc.save();
@@ -87,8 +87,14 @@ export function downloadFile(
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  // Delay cleanup so the browser has time to start the download
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 200);
 }
 
 /**
