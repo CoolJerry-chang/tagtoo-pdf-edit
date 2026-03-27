@@ -36,12 +36,29 @@ async function callGemini(
 ): Promise<Record<string, unknown>> {
   if (hasServerProxy()) {
     // Server proxy mode (Vercel) — key is on the server
+    const payload = JSON.stringify({ model, body: requestBody });
+    // Vercel Serverless Function body limit is ~4.5MB
+    const payloadSizeMB = new Blob([payload]).size / (1024 * 1024);
+    if (payloadSizeMB > 4) {
+      throw new Error(
+        `圖片太大（${payloadSizeMB.toFixed(1)}MB），超過伺服器限制。請嘗試較小的 PDF 或降低解析度。`
+      );
+    }
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, body: requestBody }),
+      body: payload,
     });
-    const data = await res.json();
+    // Handle non-JSON responses (e.g. "Request Entity Too Large")
+    const resText = await res.text();
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(resText);
+    } catch {
+      throw new Error(
+        `伺服器回應異常（${res.status}）：${resText.slice(0, 100)}`
+      );
+    }
     if (!res.ok) {
       throw new Error(
         `Gemini API error: ${res.status} — ${JSON.stringify(data)}`

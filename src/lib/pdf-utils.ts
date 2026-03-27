@@ -43,7 +43,8 @@ export async function loadPdf(file: File): Promise<PageData[]> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await page.render({ canvasContext: ctx, viewport } as any).promise;
-    const imageDataUrl = canvas.toDataURL("image/png");
+    // Use JPEG with quality 0.85 to keep base64 size under Vercel's 4.5MB body limit
+    const imageDataUrl = canvas.toDataURL("image/jpeg", 0.85);
 
     pages.push({
       pageIndex: i,
