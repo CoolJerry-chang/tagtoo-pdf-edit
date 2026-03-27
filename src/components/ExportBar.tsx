@@ -42,7 +42,7 @@ export default function ExportBar({
           onClick={onExportPng}
           disabled={isExporting}
         >
-          匯出 PNG
+          {isExporting ? "匯出中..." : "匯出 PNG (ZIP)"}
         </button>
         <button
           className="px-3 py-1.5 text-xs rounded bg-accent hover:bg-accent-hover text-white transition-colors disabled:opacity-50"

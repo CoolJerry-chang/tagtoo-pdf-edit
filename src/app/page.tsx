@@ -12,7 +12,7 @@ import { getApiKey, setApiKey, clearApiKey } from "@/lib/gemini";
 import {
   createPdfFromImages,
   downloadFile,
-  downloadAllPagesAsPng,
+  downloadAllPagesAsZip,
 } from "@/lib/export-utils";
 
 export default function Home() {
@@ -194,13 +194,25 @@ export default function Home() {
     }
   }, [pages, modifiedImages, fileName]);
 
-  const handleExportPng = useCallback(() => {
-    const finalImages = pages.map(
-      (page, i) => modifiedImages[i] || page.imageDataUrl
-    );
-    downloadAllPagesAsPng(finalImages);
-    setEditStatus("PNG 匯出完成！");
-  }, [pages, modifiedImages]);
+  const handleExportPng = useCallback(async () => {
+    setIsExporting(true);
+    setEditStatus("正在打包 PNG ZIP...");
+    try {
+      const finalImages = pages.map(
+        (page, i) => modifiedImages[i] || page.imageDataUrl
+      );
+      const baseName = fileName.replace(".pdf", "") || "slides";
+      await downloadAllPagesAsZip(finalImages, baseName);
+      setEditStatus("PNG ZIP 匯出完成！");
+    } catch (err) {
+      console.error("PNG ZIP export error:", err);
+      setEditStatus(
+        `匯出失敗: ${err instanceof Error ? err.message : "未知錯誤"}`
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [pages, modifiedImages, fileName]);
 
   const handleReset = useCallback(() => {
     setPages([]);

@@ -19,6 +19,26 @@ export function clearApiKey() {
 }
 
 /**
+ * Compress a data URL image to JPEG to reduce payload size for API calls.
+ * Original images stay as PNG for display/export quality.
+ */
+function compressImageForApi(imageDataUrl: string, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => reject(new Error("Failed to compress image"));
+    img.src = imageDataUrl;
+  });
+}
+
+/**
  * Check if we're running on Vercel (has server-side API route)
  */
 function hasServerProxy(): boolean {
@@ -106,8 +126,10 @@ export async function extractTextFromImage(
   imageDataUrl: string,
   pageIndex: number
 ): Promise<ExtractedTextBlock[]> {
-  const base64Data = imageDataUrl.split(",")[1];
-  const mimeType = imageDataUrl.split(";")[0].split(":")[1];
+  // Compress to JPEG for API call to stay under 4.5MB limit
+  const compressed = await compressImageForApi(imageDataUrl);
+  const base64Data = compressed.split(",")[1];
+  const mimeType = compressed.split(";")[0].split(":")[1];
 
   const prompt = `請分析這張投影片圖片，列出所有可見的文字內容。
 
@@ -192,8 +214,10 @@ ${editInstructions}
 - 如果找不到指定的文字，保持原圖不動
 - 直接回傳修改後的圖片`;
 
-  const base64Data = imageDataUrl.split(",")[1];
-  const mimeType = imageDataUrl.split(";")[0].split(":")[1];
+  // Compress to JPEG for API call to stay under 4.5MB limit
+  const compressed = await compressImageForApi(imageDataUrl);
+  const base64Data = compressed.split(",")[1];
+  const mimeType = compressed.split(";")[0].split(":")[1];
 
   const result = await callGemini(GEMINI_IMAGE_MODEL, {
     contents: [
