@@ -39,13 +39,15 @@ function ensurePng(imageDataUrl: string): Promise<string> {
 export async function createPdfFromImages(
   pageImages: string[],
   originalWidth: number,
-  originalHeight: number
+  originalHeight: number,
+  onProgress?: (current: number, total: number) => void
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
 
-  for (const imageDataUrl of pageImages) {
-    const imageBytes = dataUrlToUint8Array(imageDataUrl);
-    const format = getImageFormat(imageDataUrl);
+  for (let i = 0; i < pageImages.length; i++) {
+    onProgress?.(i + 1, pageImages.length);
+    const imageBytes = dataUrlToUint8Array(pageImages[i]);
+    const format = getImageFormat(pageImages[i]);
     const image =
       format === "jpeg"
         ? await pdfDoc.embedJpg(imageBytes)
@@ -62,6 +64,8 @@ export async function createPdfFromImages(
       width: pageWidth,
       height: pageHeight,
     });
+    // Yield to UI thread so progress updates render
+    await new Promise((r) => setTimeout(r, 0));
   }
 
   return await pdfDoc.save();
@@ -92,15 +96,18 @@ export function downloadFile(
  */
 export async function downloadAllPagesAsZip(
   pageImages: string[],
-  baseName: string
+  baseName: string,
+  onProgress?: (current: number, total: number) => void
 ) {
   const zip = new JSZip();
 
   for (let i = 0; i < pageImages.length; i++) {
+    onProgress?.(i + 1, pageImages.length);
     // Ensure each image is PNG (Gemini may return JPEG)
     const pngDataUrl = await ensurePng(pageImages[i]);
     const base64 = pngDataUrl.split(",")[1];
     zip.file(`${baseName}_${i + 1}.png`, base64, { base64: true });
+    await new Promise((r) => setTimeout(r, 0));
   }
 
   const blob = await zip.generateAsync({ type: "blob" });

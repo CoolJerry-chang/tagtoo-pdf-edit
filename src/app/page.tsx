@@ -22,7 +22,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportingType, setExportingType] = useState<"pdf" | "png" | null>(null);
+  const [exportProgress, setExportProgress] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [fileName, setFileName] = useState("");
   const [modifiedImages, setModifiedImages] = useState<Record<number, string>>(
@@ -170,8 +171,9 @@ export default function Home() {
 
   const handleExportPdf = useCallback(async () => {
     if (pages.length === 0) return;
-    setIsExporting(true);
-    setEditStatus("正在產生 PDF...");
+    setExportingType("pdf");
+    setExportProgress(`正在處理第 1 / ${pages.length} 頁...`);
+    setEditStatus("");
 
     try {
       const finalImages = pages.map(
@@ -180,7 +182,8 @@ export default function Home() {
       const pdfBytes = await createPdfFromImages(
         finalImages,
         pages[0].width,
-        pages[0].height
+        pages[0].height,
+        (current, total) => setExportProgress(`正在處理第 ${current} / ${total} 頁...`)
       );
       const exportName = fileName.replace(".pdf", "") + "_edited.pdf";
       downloadFile(pdfBytes, exportName, "application/pdf");
@@ -191,19 +194,23 @@ export default function Home() {
         `匯出失敗: ${err instanceof Error ? err.message : "未知錯誤"}`
       );
     } finally {
-      setIsExporting(false);
+      setExportingType(null);
+      setExportProgress("");
     }
   }, [pages, modifiedImages, fileName]);
 
   const handleExportPng = useCallback(async () => {
-    setIsExporting(true);
-    setEditStatus("正在打包 PNG ZIP...");
+    setExportingType("png");
+    setExportProgress(`正在處理第 1 / ${pages.length} 頁...`);
+    setEditStatus("");
     try {
       const finalImages = pages.map(
         (page, i) => modifiedImages[i] || page.imageDataUrl
       );
       const baseName = fileName.replace(".pdf", "") || "slides";
-      await downloadAllPagesAsZip(finalImages, baseName);
+      await downloadAllPagesAsZip(finalImages, baseName, (current, total) =>
+        setExportProgress(`正在處理第 ${current} / ${total} 頁...`)
+      );
       setEditStatus("PNG ZIP 匯出完成！");
     } catch (err) {
       console.error("PNG ZIP export error:", err);
@@ -211,7 +218,8 @@ export default function Home() {
         `匯出失敗: ${err instanceof Error ? err.message : "未知錯誤"}`
       );
     } finally {
-      setIsExporting(false);
+      setExportingType(null);
+      setExportProgress("");
     }
   }, [pages, modifiedImages, fileName]);
 
@@ -293,7 +301,8 @@ export default function Home() {
         onExportPdf={handleExportPdf}
         onExportPng={handleExportPng}
         onReset={handleReset}
-        isExporting={isExporting}
+        exportingType={exportingType}
+        exportProgress={exportProgress}
         fileName={fileName}
         totalPages={pages.length}
         editedPages={editedPageCount}
